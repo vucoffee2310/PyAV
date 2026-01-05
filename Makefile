@@ -14,7 +14,7 @@ default: build
 
 build:
 	$(PIP) install -U --pre cython setuptools
-	CFLAGS=$(CFLAGS) LDFLAGS=$(LDFLAGS) $(PYTHON) setup.py build_ext --inplace --debug
+	CFLAGS="$(CFLAGS)" LDFLAGS="$(LDFLAGS)" $(PYTHON) setup.py build_ext --inplace --debug
 
 clean:
 	- find av -name '*.so' -delete
