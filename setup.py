@@ -50,7 +50,7 @@ def get_config_from_directory(ffmpeg_dir):
     Get distutils-compatible extension arguments for a specific directory.
     """
     if not os.path.isdir(ffmpeg_dir):
-        print("The specified ffmpeg directory does not exist")
+        print(f"The specified ffmpeg directory does not exist: {ffmpeg_dir}")
         exit(1)
 
     include_dir = os.path.join(FFMPEG_DIR, "include")
@@ -64,6 +64,9 @@ def get_config_from_directory(ffmpeg_dir):
         "include_dirs": [include_dir],
         "libraries": FFMPEG_LIBRARIES,
         "library_dirs": [library_dir],
+        # AUTOMATIC: Bake the library path into the compiled binary so
+        # we don't need to set LD_LIBRARY_PATH or source activate.sh at runtime.
+        "runtime_library_dirs": [library_dir],
     }
 
 
@@ -113,16 +116,22 @@ def parse_cflags(raw_flags):
 
 
 # Parse command-line arguments.
-FFMPEG_DIR = None
+# AUTOMATIC: Default to the local vendor directory built by scripts/build-deps
+project_root = os.path.abspath(os.path.dirname(__file__))
+# Note: "ffmpeg-8.0" is the default from scripts/activate.sh. 
+# If you changed PYAV_LIBRARY there, change this folder name here.
+FFMPEG_DIR = os.path.join(project_root, "vendor", "build", "ffmpeg-8.0")
+
 for i, arg in enumerate(sys.argv):
     if arg.startswith("--ffmpeg-dir="):
         FFMPEG_DIR = arg.split("=")[1]
         del sys.argv[i]
 
 # Locate ffmpeg libraries and headers.
-if FFMPEG_DIR is not None:
+if FFMPEG_DIR is not None and os.path.exists(FFMPEG_DIR):
     extension_extra = get_config_from_directory(FFMPEG_DIR)
 elif platform.system() != "Windows":
+    # Fallback to pkg-config if local vendor build isn't found
     extension_extra = get_config_from_pkg_config()
 else:
     extension_extra = {
@@ -142,6 +151,7 @@ loudnorm_extension = Extension(
     include_dirs=[f"{IMPORT_NAME}/filter"] + extension_extra["include_dirs"],
     libraries=extension_extra["libraries"],
     library_dirs=extension_extra["library_dirs"],
+    runtime_library_dirs=extension_extra.get("runtime_library_dirs", []),
 )
 
 compiler_directives = {
@@ -185,6 +195,7 @@ for dirname, dirnames, filenames in os.walk(IMPORT_NAME):
                 include_dirs=extension_extra["include_dirs"],
                 libraries=extension_extra["libraries"],
                 library_dirs=extension_extra["library_dirs"],
+                runtime_library_dirs=extension_extra.get("runtime_library_dirs", []),
                 sources=[pyx_path],
             ),
             compiler_directives=compiler_directives,
